@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -306,14 +307,49 @@ if uploaded_files:
         st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
         st.pyplot(fig, use_container_width=True)
 
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=300)
-        buf.seek(0)
+        buf_png = io.BytesIO()
+        fig.savefig(buf_png, format="png", dpi=300)
+        buf_png.seek(0)
         st.download_button(
             label=f"Download Plot SA_{st_kode}.png",
-            data=buf,
+            data=buf_png,
             file_name=f"SA_{st_kode}.png",
             mime="image/png",
             key=f"dl_png_{st_kode}",
         )
         plt.close(fig)
+
+        desain_st = desain_per_stasiun.get(st_kode, {})
+        if desain_st:
+            st.caption(f"Download File CSV Spektrum Desain (Sa dalam gal) — Stasiun {st_kode}:")
+            zip_buf = io.BytesIO()
+            kelas_tersedia = [k for k in ["C", "D", "E"] if k in desain_st]
+            cols_csv = st.columns(len(kelas_tersedia))
+
+            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for idx_k, klas_huruf in enumerate(kelas_tersedia):
+                    df_sa_out = pd.DataFrame({
+                        "T": desain_st[klas_huruf]["Periode"].values,
+                        "Sa": desain_st[klas_huruf]["SA"].values,
+                    })
+                    csv_str = df_sa_out.to_csv(index=False)
+                    csv_filename = f"{st_kode}_s{klas_huruf.lower()}.csv"
+                    zf.writestr(csv_filename, csv_str)
+
+                    with cols_csv[idx_k]:
+                        st.download_button(
+                            label=f"Download {csv_filename}",
+                            data=csv_str.encode("utf-8"),
+                            file_name=csv_filename,
+                            mime="text/csv",
+                            key=f"dl_csv_{st_kode}_{klas_huruf}",
+                        )
+
+            zip_buf.seek(0)
+            st.download_button(
+                label=f"Download Semua CSV {st_kode} (.zip)",
+                data=zip_buf,
+                file_name=f"{st_kode}_sa_csv.zip",
+                mime="application/zip",
+                key=f"dl_zip_{st_kode}",
+            )
