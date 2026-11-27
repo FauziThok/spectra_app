@@ -240,7 +240,7 @@ def buat_figure_stasiun(
 
     min_pos = max(1e-6, float(ylim_min) * 0.1) if use_log_y else None
 
-    tambah_watermark_bmkg(ax=ax, logo_path=logo_path, zoom=0.5, alpha=0.14)
+    tambah_watermark_bmkg(ax=ax, logo_path=logo_path, zoom=0.3, alpha=0.14)
 
     for komp in ["HNE", "HNN", "HNZ"]:
         if komp in komponen_data and not komponen_data[komp].empty:
