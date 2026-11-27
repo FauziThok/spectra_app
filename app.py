@@ -169,7 +169,7 @@ def tambah_logo_kiri_atas_judul(
     ax, 
     logo_path: str | Path = DEFAULT_LOGO,
     logo_w: float = 0.085,
-    offset_x: float = 0.0,
+    offset_x: float = 0.01,
     offset_y: float = 0.02,
 ):
     path = Path(logo_path)
@@ -267,9 +267,9 @@ def buat_figure_stasiun(
     fig=fig,
     ax=ax,
     logo_path=logo_path,
-    logo_w=0.1,    # besar/kecil logo
+    logo_w=0.085,    # besar/kecil logo
     offset_x=-0.05,  # geser kiri (- angka) / kanan (+ angka)
-    offset_y=0.05,   # geser bawah (- angka) / atas (+ angka)
+    offset_y=0.03,   # geser bawah (- angka) / atas (+ angka)
 )
     return fig
 
