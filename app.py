@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytz
 import streamlit as st
+from matplotlib.ticker import ScalarFormatter
 from scipy.interpolate import PchipInterpolator
 
 st.set_page_config(
@@ -121,7 +122,7 @@ def extract_datetime_from_filename(filename: str) -> str:
         return ""
 
 
-def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-"):
+def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-", min_positive: float | None = None):
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     idx = np.argsort(x)
@@ -133,12 +134,18 @@ def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-"):
         try:
             x_new = np.linspace(x_unique.min(), x_unique.max(), 500)
             pchip = PchipInterpolator(x_unique, y_unique)
-            y_smooth = np.where(pchip(x_new) < 0, 0, pchip(x_new))
+            y_smooth = pchip(x_new)
+            if min_positive is not None:
+                y_smooth = np.where(y_smooth < min_positive, min_positive, y_smooth)
+            else:
+                y_smooth = np.where(y_smooth < 0, 0, y_smooth)
             ax.plot(x_new, y_smooth, color=color, linestyle=style, linewidth=1.8, label=label)
             return
         except Exception:
             pass
 
+    if min_positive is not None:
+        y_unique = np.where(y_unique < min_positive, min_positive, y_unique)
     ax.plot(x_unique, y_unique, color=color, linestyle=style, linewidth=1.8, label=label)
 
 
@@ -151,11 +158,14 @@ def buat_figure_stasiun(
     periode_maks: float,
     ylim_min: float,
     ylim_max: float,
+    use_log_y: bool,
 ):
     fig, ax = plt.subplots(figsize=(6, 4.5))
     warna_komp = {"HNE": "black", "HNN": "green", "HNZ": "blue"}
     warna_desain = {"E": "red", "D": "orange", "C": "gold"}
     label_klas = {"E": "(SE)", "D": "(SD)", "C": "(SC)"}
+
+    min_pos = 1e-6 if use_log_y else None
 
     for komp in ["HNE", "HNN", "HNZ"]:
         if komp in komponen_data and not komponen_data[komp].empty:
@@ -167,19 +177,29 @@ def buat_figure_stasiun(
                 f"Respons Spektra {komp}",
                 warna_komp[komp],
                 "-",
+                min_positive=min_pos,
             )
 
     for klas in ["E", "D", "C"]:
         df_d = desain_data.get(klas)
         if df_d is not None and not df_d.empty:
+            y_vals = df_d["SA"].values
+            if use_log_y:
+                y_vals = np.where(y_vals < min_pos, min_pos, y_vals)
             ax.plot(
                 df_d["Periode"].values,
-                df_d["SA"].values,
+                y_vals,
                 color=warna_desain[klas],
                 linestyle="--",
                 linewidth=1.8,
                 label=f"Desain Respon Spektra SNI 1726-2019 {label_klas[klas]}",
             )
+
+    if use_log_y:
+        ax.set_yscale("log")
+        formatter = ScalarFormatter()
+        formatter.set_scientific(False)
+        ax.yaxis.set_major_formatter(formatter)
 
     judul_lokasi = f"Stasiun Akselerograf {stasiun}" + (f" - {lokasi_detail}" if lokasi_detail else "")
     ot_line = f"OT: {timestamp_str}\n" if timestamp_str else ""
@@ -194,7 +214,7 @@ def buat_figure_stasiun(
     ax.set_ylabel("SA (gal)", fontsize=10.5)
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(ylim_min, ylim_max)
-    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.grid(True, which="major", linestyle="--", alpha=0.6)
     ax.legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
     return fig
@@ -222,21 +242,31 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Pengaturan Sumbu Y")
+    use_log_y = st.checkbox("Gunakan skala logaritmik (log) sumbu Y", value=True)
     samakan_skala_y = st.checkbox("Samakan skala sumbu Y antar stasiun", value=True)
-    batas_y_manual = st.checkbox("Atur batas sumbu Y manual", value=False)
+    batas_y_manual = st.checkbox(
+        "Atur batas sumbu Y manual",
+        value=True if use_log_y else False,
+    )
 
     if batas_y_manual:
+        default_ymin = 0.01 if use_log_y else 0.0
+        default_ymax = 10000.0 if use_log_y else 500.0
+        min_allowed_y = 1e-6 if use_log_y else 0.0
+
         ymin_input = st.number_input(
             "Batas Bawah Y (gal)",
-            min_value=0.0,
-            value=0.0,
-            step=10.0,
+            min_value=min_allowed_y,
+            value=default_ymin,
+            step=0.01 if use_log_y else 10.0,
+            format="%.4f" if use_log_y else "%.2f",
         )
         ymax_input = st.number_input(
             "Batas Atas Y (gal)",
-            min_value=0.1,
-            value=500.0,
-            step=10.0,
+            min_value=min_allowed_y * 10,
+            value=default_ymax,
+            step=100.0 if use_log_y else 10.0,
+            format="%.2f",
         )
         if ymax_input <= ymin_input:
             st.error("Batas Atas Y harus lebih besar dari Batas Bawah Y.")
@@ -316,10 +346,12 @@ if uploaded_files:
 
         if batas_y_manual:
             ylim_min_val = float(ymin_input)
-            ylim_max_val = float(ymax_input) if float(ymax_input) > float(ymin_input) else float(ymin_input) + 1.0
+            ylim_max_val = float(ymax_input) if float(ymax_input) > float(ymin_input) else float(ymin_input) * 10.0
         else:
-            ylim_min_val = 0.0
+            ylim_min_val = 0.01 if use_log_y else 0.0
             ylim_max_val = global_ylim if samakan_skala_y else max(max_y_per_stasiun.get(st_kode, 1.0) * 1.2, 1.0)
+            if use_log_y and ylim_max_val <= ylim_min_val:
+                ylim_max_val = ylim_min_val * 100.0
 
         ts_str = extract_datetime_from_filename(filename_per_stasiun.get(st_kode, ""))
         loc_str = info_stasiun.get(st_kode, "")
@@ -333,6 +365,7 @@ if uploaded_files:
             periode_maks=periode_maks,
             ylim_min=ylim_min_val,
             ylim_max=ylim_max_val,
+            use_log_y=use_log_y,
         )
 
         st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
