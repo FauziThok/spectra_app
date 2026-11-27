@@ -164,17 +164,28 @@ def _format_log_y(val: float, _pos: int) -> str:
     return f"{val:g}"
 
 
-def tambah_logo_kiri_atas_judul(fig, ax, logo_path: str | Path = DEFAULT_LOGO):
+def tambah_logo_kiri_atas_judul(
+    fig, 
+    ax, 
+    logo_path: str | Path = DEFAULT_LOGO,
+    logo_w: float = 0.085,
+    offset_x: float = 0.0,
+    offset_y: float = 0.02,
+):
     path = Path(logo_path)
     if not path.exists():
         return
     try:
         img = Image.open(path).convert("RGBA")
         ax_pos = ax.get_position()
-        logo_size = 0.1
-        logo_x = max(0.01, ax_pos.x0 - 0.01)
-        logo_y = min(0.985 - logo_size, ax_pos.y1 + 0.02)
-        logo_ax = fig.add_axes([logo_x, logo_y, logo_size, logo_size])
+
+        aspect = img.height / max(img.width, 1)
+        logo_h = logo_w * aspect
+
+        logo_x = max(0.01, min(1.0 - logo_w - 0.01, ax_pos.x0 + offset_x))
+        logo_y = max(0.01, min(1.0 - logo_h - 0.01, ax_pos.y1 + offset_y))
+
+        logo_ax = fig.add_axes([logo_x, logo_y, logo_w, logo_h])
         logo_ax.imshow(img)
         logo_ax.axis("off")
     except Exception:
@@ -252,7 +263,14 @@ def buat_figure_stasiun(
     ax.grid(True, which="major", linestyle="--", alpha=0.6)
     ax.legend(loc="upper right", fontsize=6.5)
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
-    tambah_logo_kiri_atas_judul(fig=fig, ax=ax, logo_path=logo_path)
+    tambah_logo_kiri_atas_judul(
+    fig=fig,
+    ax=ax,
+    logo_path=logo_path,
+    logo_w=0.1,    # besar/kecil logo
+    offset_x=-0.05,  # geser kiri (- angka) / kanan (+ angka)
+    offset_y=0.05,   # geser bawah (- angka) / atas (+ angka)
+)
     return fig
 
 
