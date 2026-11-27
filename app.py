@@ -478,3 +478,6 @@ if uploaded_files:
             )
 else:
     st.caption("Silakan unggah satu atau beberapa file `.psa5` untuk menampilkan grafik.")
+
+st.divider()
+st.caption("Created by Fauzi Thok")
