@@ -171,7 +171,7 @@ def tambah_logo_kiri_atas_judul(fig, ax, logo_path: str | Path = DEFAULT_LOGO):
     try:
         img = Image.open(path).convert("RGBA")
         ax_pos = ax.get_position()
-        logo_size = 0.2
+        logo_size = 0.1
         logo_x = max(0.02, ax_pos.x0 - 0.01)
         logo_y = min(0.985 - logo_size, ax_pos.y1 + 0.02)
         logo_ax = fig.add_axes([logo_x, logo_y, logo_size, logo_size])
