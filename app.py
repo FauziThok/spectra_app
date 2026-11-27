@@ -224,12 +224,12 @@ def buat_figure_stasiun(
         f"Badan Meteorologi Klimatologi dan Geofisika (BMKG)",
         fontsize=10.5,
     )
-    ax.set_xlabel("Periode (detik)", fontsize=10.5)
-    ax.set_ylabel("SA (gal)", fontsize=10.5)
+    ax.set_xlabel("Periode (detik)", fontsize=8)
+    ax.set_ylabel("SA (gal)", fontsize=8)
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(ylim_min, ylim_max)
     ax.grid(True, which="major", linestyle="--", alpha=0.6)
-    ax.legend(loc="upper right", fontsize=6)
+    ax.legend(loc="upper right", fontsize=6.5)
     fig.tight_layout()
     return fig
 
