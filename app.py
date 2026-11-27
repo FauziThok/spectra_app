@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytz
 import streamlit as st
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.ticker import FuncFormatter, LogLocator
 from PIL import Image
 from scipy.interpolate import PchipInterpolator
@@ -144,14 +145,14 @@ def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-", min_posi
                 y_smooth = np.where(y_smooth < min_positive, min_positive, y_smooth)
             else:
                 y_smooth = np.where(y_smooth < 0, 0, y_smooth)
-            ax.plot(x_new, y_smooth, color=color, linestyle=style, linewidth=1.8, label=label)
+            ax.plot(x_new, y_smooth, color=color, linestyle=style, linewidth=1.8, label=label, zorder=3)
             return
         except Exception:
             pass
 
     if min_positive is not None:
         y_unique = np.where(y_unique < min_positive, min_positive, y_unique)
-    ax.plot(x_unique, y_unique, color=color, linestyle=style, linewidth=1.8, label=label)
+    ax.plot(x_unique, y_unique, color=color, linestyle=style, linewidth=1.8, label=label, zorder=3)
 
 
 def _format_log_y(val: float, _pos: int) -> str:
@@ -165,8 +166,8 @@ def _format_log_y(val: float, _pos: int) -> str:
 
 
 def tambah_logo_kiri_atas_judul(
-    fig, 
-    ax, 
+    fig,
+    ax,
     logo_path: str | Path = DEFAULT_LOGO,
     logo_w: float = 0.085,
     offset_x: float = 0.01,
@@ -192,6 +193,33 @@ def tambah_logo_kiri_atas_judul(
         pass
 
 
+def tambah_watermark_bmkg(
+    ax,
+    logo_path: str | Path = DEFAULT_LOGO,
+    zoom: float = 0.25,
+    alpha: float = 0.14,
+):
+    path = Path(logo_path)
+    if not path.exists():
+        return
+    try:
+        img = Image.open(path).convert("RGBA")
+        imagebox = OffsetImage(img, zoom=zoom, alpha=alpha)
+        imagebox.image.axes = ax
+        ab = AnnotationBbox(
+            imagebox,
+            xy=(0.5, 0.5),
+            xycoords="axes fraction",
+            box_alignment=(0.5, 0.5),
+            frameon=False,
+            pad=0.0,
+            zorder=1,
+        )
+        ax.add_artist(ab)
+    except Exception:
+        pass
+
+
 def buat_figure_stasiun(
     stasiun: str,
     komponen_data: dict[str, pd.DataFrame],
@@ -211,6 +239,8 @@ def buat_figure_stasiun(
     label_klas = {"E": "(SE)", "D": "(SD)", "C": "(SC)"}
 
     min_pos = max(1e-6, float(ylim_min) * 0.1) if use_log_y else None
+
+    tambah_watermark_bmkg(ax=ax, logo_path=logo_path, zoom=0.25, alpha=0.14)
 
     for komp in ["HNE", "HNN", "HNZ"]:
         if komp in komponen_data and not komponen_data[komp].empty:
@@ -238,6 +268,7 @@ def buat_figure_stasiun(
                 linestyle="--",
                 linewidth=1.8,
                 label=f"Desain Respon Spektra SNI 1726-2019 {label_klas[klas]}",
+                zorder=3,
             )
 
     if use_log_y:
@@ -260,17 +291,17 @@ def buat_figure_stasiun(
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(ylim_min, ylim_max)
     ax.tick_params(axis="both", labelsize=8)
-    ax.grid(True, which="major", linestyle="--", alpha=0.6)
+    ax.grid(True, which="major", linestyle="--", alpha=0.6, zorder=2)
     ax.legend(loc="upper right", fontsize=6.5)
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
     tambah_logo_kiri_atas_judul(
-    fig=fig,
-    ax=ax,
-    logo_path=logo_path,
-    logo_w=0.085,    # besar/kecil logo
-    offset_x=-0.07,  # geser kiri (- angka) / kanan (+ angka)
-    offset_y=0.04,   # geser bawah (- angka) / atas (+ angka)
-)
+        fig=fig,
+        ax=ax,
+        logo_path=logo_path,
+        logo_w=0.085,    # besar/kecil logo
+        offset_x=-0.07,  # geser kiri (- angka) / kanan (+ angka)
+        offset_y=0.04,   # geser bawah (- angka) / atas (+ angka)
+    )
     return fig
 
 
