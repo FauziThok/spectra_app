@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytz
 import streamlit as st
-from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import FuncFormatter, LogLocator
 from scipy.interpolate import PchipInterpolator
 
 st.set_page_config(
@@ -152,6 +152,16 @@ def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-", min_posi
     ax.plot(x_unique, y_unique, color=color, linestyle=style, linewidth=1.8, label=label)
 
 
+def _format_log_y(val: float, _pos: int) -> str:
+    if val <= 0:
+        return ""
+    if val < 1:
+        return f"{val:.4f}".rstrip("0").rstrip(".")
+    if np.isclose(val, round(val)):
+        return f"{int(round(val))}"
+    return f"{val:g}"
+
+
 def buat_figure_stasiun(
     stasiun: str,
     komponen_data: dict[str, pd.DataFrame],
@@ -201,9 +211,9 @@ def buat_figure_stasiun(
 
     if use_log_y:
         ax.set_yscale("log")
-        formatter = ScalarFormatter()
-        formatter.set_scientific(False)
-        ax.yaxis.set_major_formatter(formatter)
+        ax.yaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,), numticks=12))
+        ax.yaxis.set_major_formatter(FuncFormatter(_format_log_y))
+        ax.yaxis.set_minor_formatter(plt.NullFormatter())
 
     judul_lokasi = f"Stasiun Akselerograf {stasiun}" + (f" - {lokasi_detail}" if lokasi_detail else "")
     ot_line = f"OT: {timestamp_str}\n" if timestamp_str else ""
