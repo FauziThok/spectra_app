@@ -228,6 +228,7 @@ def buat_figure_stasiun(
     ax.set_ylabel("SA (gal)", fontsize=8)
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(ylim_min, ylim_max)
+    ax.tick_params(axis="both", labelsize=8)
     ax.grid(True, which="major", linestyle="--", alpha=0.6)
     ax.legend(loc="upper right", fontsize=6.5)
     fig.tight_layout()
