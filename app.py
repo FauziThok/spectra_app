@@ -149,6 +149,7 @@ def buat_figure_stasiun(
     timestamp_str: str,
     lokasi_detail: str,
     periode_maks: float,
+    ylim_min: float,
     ylim_max: float,
 ):
     fig, ax = plt.subplots(figsize=(6, 4.5))
@@ -192,7 +193,7 @@ def buat_figure_stasiun(
     ax.set_xlabel("Periode (detik)", fontsize=10.5)
     ax.set_ylabel("SA (gal)", fontsize=10.5)
     ax.set_xlim(0, periode_maks)
-    ax.set_ylim(0, ylim_max)
+    ax.set_ylim(ylim_min, ylim_max)
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
@@ -218,7 +219,29 @@ with st.sidebar:
         step=0.01,
         format="%.3f",
     )
+
+    st.divider()
+    st.subheader("Pengaturan Sumbu Y")
     samakan_skala_y = st.checkbox("Samakan skala sumbu Y antar stasiun", value=True)
+    batas_y_manual = st.checkbox("Atur batas sumbu Y manual", value=False)
+
+    if batas_y_manual:
+        ymin_input = st.number_input(
+            "Batas Bawah Y (gal)",
+            min_value=0.0,
+            value=0.0,
+            step=10.0,
+        )
+        ymax_input = st.number_input(
+            "Batas Atas Y (gal)",
+            min_value=0.1,
+            value=500.0,
+            step=10.0,
+        )
+        if ymax_input <= ymin_input:
+            st.error("Batas Atas Y harus lebih besar dari Batas Bawah Y.")
+
+    st.divider()
     json_path_input = st.text_input("Path hasil_spektra.json", value=str(DEFAULT_JSON))
     info_path_input = st.text_input("Path data_stasiun.txt (opsional)", value=str(DEFAULT_INFO))
 
@@ -290,7 +313,14 @@ if uploaded_files:
     for st_kode, komp_map in data_stasiun.items():
         if not komp_map:
             continue
-        ylim_val = global_ylim if samakan_skala_y else max(max_y_per_stasiun.get(st_kode, 1.0) * 1.2, 1.0)
+
+        if batas_y_manual:
+            ylim_min_val = float(ymin_input)
+            ylim_max_val = float(ymax_input) if float(ymax_input) > float(ymin_input) else float(ymin_input) + 1.0
+        else:
+            ylim_min_val = 0.0
+            ylim_max_val = global_ylim if samakan_skala_y else max(max_y_per_stasiun.get(st_kode, 1.0) * 1.2, 1.0)
+
         ts_str = extract_datetime_from_filename(filename_per_stasiun.get(st_kode, ""))
         loc_str = info_stasiun.get(st_kode, "")
 
@@ -301,7 +331,8 @@ if uploaded_files:
             timestamp_str=ts_str,
             lokasi_detail=loc_str,
             periode_maks=periode_maks,
-            ylim_max=ylim_val,
+            ylim_min=ylim_min_val,
+            ylim_max=ylim_max_val,
         )
 
         st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
