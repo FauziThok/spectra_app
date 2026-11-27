@@ -372,8 +372,8 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Tampilan & Warna Garis")
-    tampilkan_logo = st.checkbox("Tampilkan logo BMKG di kiri atas judul", value=True)
-    tampilkan_watermark = st.checkbox("Tampilkan watermark BMKG di tengah plot", value=True)
+    tampilkan_logo = st.checkbox("Tampilkan logo", value=False)
+    tampilkan_watermark = st.checkbox("Tampilkan watermark", value=False)
     lebar_kolom_pct = st.slider("Lebar tampilan plot di halaman (%)", min_value=30, max_value=100, value=55, step=5)
     fig_w = st.slider("Lebar Figure (inci)", min_value=4.5, max_value=10.0, value=6.0, step=0.5)
     fig_h = st.slider("Tinggi Figure (inci)", min_value=3.5, max_value=8.0, value=4.5, step=0.5)
