@@ -196,7 +196,7 @@ def tambah_logo_kiri_atas_judul(
 def tambah_watermark_bmkg(
     ax,
     logo_path: str | Path = DEFAULT_LOGO,
-    zoom: float = 0.25,
+    zoom: float = 0.3,
     alpha: float = 0.14,
 ):
     path = Path(logo_path)
@@ -233,6 +233,8 @@ def buat_figure_stasiun(
     warna_komp: dict[str, str],
     warna_desain: dict[str, str],
     figsize_tuple: tuple[float, float],
+    tampilkan_logo: bool = True,
+    tampilkan_watermark: bool = True,
     logo_path: str | Path = DEFAULT_LOGO,
 ):
     fig, ax = plt.subplots(figsize=figsize_tuple)
@@ -240,7 +242,8 @@ def buat_figure_stasiun(
 
     min_pos = max(1e-6, float(ylim_min) * 0.1) if use_log_y else None
 
-    tambah_watermark_bmkg(ax=ax, logo_path=logo_path, zoom=0.3, alpha=0.14)
+    if tampilkan_watermark:
+        tambah_watermark_bmkg(ax=ax, logo_path=logo_path, zoom=0.3, alpha=0.14)
 
     for komp in ["HNE", "HNN", "HNZ"]:
         if komp in komponen_data and not komponen_data[komp].empty:
@@ -294,14 +297,15 @@ def buat_figure_stasiun(
     ax.grid(True, which="major", linestyle="--", alpha=0.6, zorder=2)
     ax.legend(loc="upper right", fontsize=6.5)
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
-    tambah_logo_kiri_atas_judul(
-        fig=fig,
-        ax=ax,
-        logo_path=logo_path,
-        logo_w=0.085,    # besar/kecil logo
-        offset_x=-0.07,  # geser kiri (- angka) / kanan (+ angka)
-        offset_y=0.04,   # geser bawah (- angka) / atas (+ angka)
-    )
+    if tampilkan_logo:
+        tambah_logo_kiri_atas_judul(
+            fig=fig,
+            ax=ax,
+            logo_path=logo_path,
+            logo_w=0.085,    # besar/kecil logo
+            offset_x=-0.07,  # geser kiri (- angka) / kanan (+ angka)
+            offset_y=0.04,   # geser bawah (- angka) / atas (+ angka)
+        )
     return fig
 
 
@@ -368,6 +372,8 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Tampilan & Warna Garis")
+    tampilkan_logo = st.checkbox("Tampilkan logo BMKG di kiri atas judul", value=True)
+    tampilkan_watermark = st.checkbox("Tampilkan watermark BMKG di tengah plot", value=True)
     lebar_kolom_pct = st.slider("Lebar tampilan plot di halaman (%)", min_value=30, max_value=100, value=55, step=5)
     fig_w = st.slider("Lebar Figure (inci)", min_value=4.5, max_value=10.0, value=6.0, step=0.5)
     fig_h = st.slider("Tinggi Figure (inci)", min_value=3.5, max_value=8.0, value=4.5, step=0.5)
@@ -496,6 +502,8 @@ if uploaded_files:
             warna_komp=warna_komp,
             warna_desain=warna_desain,
             figsize_tuple=(float(fig_w), float(fig_h)),
+            tampilkan_logo=tampilkan_logo,
+            tampilkan_watermark=tampilkan_watermark,
             logo_path=DEFAULT_LOGO,
         )
 
