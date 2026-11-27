@@ -306,7 +306,7 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Pengaturan Sumbu Y")
-    use_log_y = st.checkbox("Gunakan skala logaritmik (log) sumbu Y", value=True)
+    use_log_y = st.checkbox("Gunakan skala logaritmik (log) sumbu Y", value=False)
     samakan_skala_y = st.checkbox("Samakan skala sumbu Y antar stasiun", value=True)
     batas_y_manual = st.checkbox(
         "Atur batas sumbu Y manual",
