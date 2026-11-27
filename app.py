@@ -229,7 +229,7 @@ def buat_figure_stasiun(
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(ylim_min, ylim_max)
     ax.grid(True, which="major", linestyle="--", alpha=0.6)
-    ax.legend(loc="upper right", fontsize=8.5)
+    ax.legend(loc="upper right", fontsize=6)
     fig.tight_layout()
     return fig
 
