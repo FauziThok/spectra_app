@@ -383,7 +383,7 @@ if uploaded_files:
                     })
                     max_desain = max(max_desain, float(np.max(sa_gal)))
         else:
-            st.warning(f"Kode stasiun `{st_kode}` tidak ditemukan di `{json_path_input}` — hanya menampilkan PSA.")
+            st.warning(f"Kode stasiun `{st_kode}` tidak ditemukan di `{json_path_input}` - hanya menampilkan PSA.")
 
         peak_psa_per_stasiun[st_kode] = max_psa
         max_y_per_stasiun[st_kode] = max(max_psa, max_desain)
@@ -430,7 +430,7 @@ if uploaded_files:
 
         st.subheader(
             f"Stasiun: {st_kode}"
-            + (f" — {loc_str}" if loc_str else "")
+            + (f" - {loc_str}" if loc_str else "")
             + f" (Peak PSA: {peak_obs:.2f} gal)"
         )
 
@@ -456,7 +456,7 @@ if uploaded_files:
 
         desain_st = desain_per_stasiun.get(st_kode, {})
         if desain_st:
-            st.caption(f"Download File CSV Spektrum Desain (Sa dalam gal) — Stasiun {st_kode}:")
+            st.caption(f"Download File CSV Spektrum Desain (Sa dalam gal) - Stasiun {st_kode}:")
             zip_buf = io.BytesIO()
             kelas_tersedia = [k for k in ["C", "D", "E"] if k in desain_st]
             cols_csv = st.columns(len(kelas_tersedia))
