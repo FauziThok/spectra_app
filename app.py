@@ -28,6 +28,9 @@ TL_DEFAULT = 12.0
 G_TO_GAL = 980.665
 PSA_PATTERN = re.compile(r"\d{14}_(?:IA_)?([A-Z0-9]+)_((?:00)?HN[ENZ])_", re.I)
 
+if "psa_uploader_key" not in st.session_state:
+    st.session_state["psa_uploader_key"] = 0
+
 
 @st.cache_data
 def muat_json_spektra(json_path: str) -> dict[str, dict]:
@@ -313,9 +316,14 @@ uploaded_files = st.file_uploader(
     "Upload file *.psa5",
     type=["psa5"],
     accept_multiple_files=True,
+    key=f"psa_uploader_{st.session_state['psa_uploader_key']}",
 )
 
 if uploaded_files:
+    if st.button("Hapus Semua File .psa5", type="secondary", key="btn_clear_psa"):
+        st.session_state["psa_uploader_key"] += 1
+        st.rerun()
+
     T = buat_array_periode(periode_maks, interval)
     data_stasiun: dict[str, dict[str, pd.DataFrame]] = {}
     filename_per_stasiun: dict[str, str] = {}
