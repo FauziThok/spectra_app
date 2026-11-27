@@ -269,7 +269,7 @@ def buat_figure_stasiun(
     logo_path=logo_path,
     logo_w=0.085,    # besar/kecil logo
     offset_x=-0.05,  # geser kiri (- angka) / kanan (+ angka)
-    offset_y=0.03,   # geser bawah (- angka) / atas (+ angka)
+    offset_y=0.035,   # geser bawah (- angka) / atas (+ angka)
 )
     return fig
 
