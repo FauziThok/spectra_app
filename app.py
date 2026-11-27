@@ -151,7 +151,7 @@ def buat_figure_stasiun(
     periode_maks: float,
     ylim_max: float,
 ):
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(6, 4.5))
     warna_komp = {"HNE": "black", "HNN": "green", "HNZ": "blue"}
     warna_desain = {"E": "red", "D": "orange", "C": "gold"}
     label_klas = {"E": "(SE)", "D": "(SD)", "C": "(SC)"}
@@ -187,14 +187,14 @@ def buat_figure_stasiun(
         f"{judul_lokasi}\n"
         f"{ot_line}"
         f"Badan Meteorologi Klimatologi dan Geofisika (BMKG)",
-        fontsize=11,
+        fontsize=10.5,
     )
-    ax.set_xlabel("Periode (detik)", fontsize=11)
-    ax.set_ylabel("SA (gal)", fontsize=11)
+    ax.set_xlabel("Periode (detik)", fontsize=10.5)
+    ax.set_ylabel("SA (gal)", fontsize=10.5)
     ax.set_xlim(0, periode_maks)
     ax.set_ylim(0, ylim_max)
     ax.grid(True, linestyle="--", alpha=0.6)
-    ax.legend(loc="upper right", fontsize=9)
+    ax.legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
     return fig
 
@@ -305,7 +305,10 @@ if uploaded_files:
         )
 
         st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
-        st.pyplot(fig, use_container_width=True)
+
+        col_plot, _ = st.columns([1.3, 1])
+        with col_plot:
+            st.pyplot(fig, use_container_width=True)
 
         buf_png = io.BytesIO()
         fig.savefig(buf_png, format="png", dpi=300)
@@ -353,3 +356,5 @@ if uploaded_files:
                 mime="application/zip",
                 key=f"dl_zip_{st_kode}",
             )
+else:
+    st.caption("Silakan unggah satu atau beberapa file `.psa5` untuk menampilkan grafik.")
