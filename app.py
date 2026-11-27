@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import io
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import pytz
 import streamlit as st
+from scipy.interpolate import PchipInterpolator
 
 st.set_page_config(
     page_title="Respons Spektra vs Desain SNI 1726-2019",
@@ -16,6 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_JSON = BASE_DIR / "rsa" / "hasil_spektra.json"
 DEFAULT_INFO = BASE_DIR / "data_stasiun.txt"
 
+TL_DEFAULT = 12.0
+G_TO_GAL = 980.665
 PSA_PATTERN = re.compile(r"\d{14}_(?:IA_)?([A-Z0-9]+)_((?:00)?HN[ENZ])_", re.I)
 
 
@@ -48,6 +56,148 @@ def muat_info_stasiun(info_path: str) -> dict[str, str]:
     return info
 
 
+def buat_array_periode(periode_maks: float, interval: float) -> np.ndarray:
+    n_steps = int(np.floor(periode_maks / interval + 1e-12))
+    T = np.round(np.arange(0, n_steps + 1) * interval, 8)
+    T = T[T <= periode_maks + 1e-12]
+    if T.size == 0 or T[-1] < periode_maks - 1e-12:
+        T = np.append(T, round(float(periode_maks), 8))
+    return T
+
+
+def hitung_sa_gal(
+    T: np.ndarray,
+    sds: float,
+    sd1: float,
+    t0: float,
+    ts: float,
+    tl: float = 12.0,
+) -> np.ndarray:
+    sa = np.zeros_like(T, dtype=float)
+
+    m1 = (T >= 0.0) & (T < t0)
+    m2 = (T >= t0) & (T <= ts)
+    m3 = (T > ts) & (T <= tl)
+    m4 = T > tl
+
+    if t0 > 0:
+        sa[m1] = sds * (0.4 + 0.6 * (T[m1] / t0))
+    else:
+        sa[m1] = sds
+
+    sa[m2] = sds
+    sa[m3] = sd1 / T[m3]
+    sa[m4] = (sd1 * tl) / (T[m4] ** 2)
+
+    return sa * G_TO_GAL
+
+
+def baca_psa_dari_bytes(raw_bytes: bytes, periode_maks: float) -> pd.DataFrame:
+    df = pd.read_csv(
+        io.BytesIO(raw_bytes),
+        sep=r"\s+",
+        header=None,
+        names=["Periode", "PSA"],
+        engine="python",
+    )
+    df["Periode"] = pd.to_numeric(df["Periode"], errors="coerce")
+    df["PSA"] = pd.to_numeric(df["PSA"], errors="coerce")
+    df = df.dropna(subset=["Periode", "PSA"])
+    df = df[df["Periode"] <= periode_maks]
+    df = df.sort_values(by="Periode").drop_duplicates(subset=["Periode"], keep="first")
+    df["PSA"] *= 100
+    return df
+
+
+def extract_datetime_from_filename(filename: str) -> str:
+    try:
+        timestamp = filename[:14]
+        date_time = datetime.strptime(timestamp, "%Y%m%d%H%M%S")
+        wib_zone = pytz.timezone("Asia/Jakarta")
+        date_time_wib = pytz.utc.localize(date_time).astimezone(wib_zone)
+        return date_time_wib.strftime("%d %B %Y %H:%M:%S") + " WIB"
+    except Exception:
+        return ""
+
+
+def plot_psa_spline(ax, x, y, label: str, color: str, style: str = "-"):
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    idx = np.argsort(x)
+    x, y = x[idx], y[idx]
+    x_unique, unique_idx = np.unique(x, return_index=True)
+    y_unique = y[unique_idx]
+
+    if len(x_unique) >= 3:
+        try:
+            x_new = np.linspace(x_unique.min(), x_unique.max(), 500)
+            pchip = PchipInterpolator(x_unique, y_unique)
+            y_smooth = np.where(pchip(x_new) < 0, 0, pchip(x_new))
+            ax.plot(x_new, y_smooth, color=color, linestyle=style, linewidth=1.8, label=label)
+            return
+        except Exception:
+            pass
+
+    ax.plot(x_unique, y_unique, color=color, linestyle=style, linewidth=1.8, label=label)
+
+
+def buat_figure_stasiun(
+    stasiun: str,
+    komponen_data: dict[str, pd.DataFrame],
+    desain_data: dict[str, pd.DataFrame],
+    timestamp_str: str,
+    lokasi_detail: str,
+    periode_maks: float,
+    ylim_max: float,
+):
+    fig, ax = plt.subplots(figsize=(8, 6))
+    warna_komp = {"HNE": "black", "HNN": "green", "HNZ": "blue"}
+    warna_desain = {"E": "red", "D": "orange", "C": "gold"}
+    label_klas = {"E": "(SE)", "D": "(SD)", "C": "(SC)"}
+
+    for komp in ["HNE", "HNN", "HNZ"]:
+        if komp in komponen_data and not komponen_data[komp].empty:
+            df_k = komponen_data[komp]
+            plot_psa_spline(
+                ax,
+                df_k["Periode"].values,
+                df_k["PSA"].values,
+                f"Respons Spektra {komp}",
+                warna_komp[komp],
+                "-",
+            )
+
+    for klas in ["E", "D", "C"]:
+        df_d = desain_data.get(klas)
+        if df_d is not None and not df_d.empty:
+            ax.plot(
+                df_d["Periode"].values,
+                df_d["SA"].values,
+                color=warna_desain[klas],
+                linestyle="--",
+                linewidth=1.8,
+                label=f"Desain Respon Spektra SNI 1726-2019 {label_klas[klas]}",
+            )
+
+    judul_lokasi = f"Stasiun Akselerograf {stasiun}" + (f" - {lokasi_detail}" if lokasi_detail else "")
+    ot_line = f"OT: {timestamp_str}\n" if timestamp_str else ""
+    ax.set_title(
+        f"Respon Spektra Vs Desain Respon Spektra\n"
+        f"{judul_lokasi}\n"
+        f"{ot_line}"
+        f"Badan Meteorologi Klimatologi dan Geofisika (BMKG)",
+        fontsize=11,
+    )
+    ax.set_xlabel("Periode (detik)", fontsize=11)
+    ax.set_ylabel("SA (gal)", fontsize=11)
+    ax.set_xlim(0, periode_maks)
+    ax.set_ylim(0, ylim_max)
+    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.legend(loc="upper right", fontsize=9)
+    fig.tight_layout()
+    return fig
+
+
 st.title("Respons Spektra vs Desain Spektra (SNI 1726-2019)")
 
 with st.sidebar:
@@ -67,6 +217,7 @@ with st.sidebar:
         step=0.01,
         format="%.3f",
     )
+    samakan_skala_y = st.checkbox("Samakan skala sumbu Y antar stasiun", value=True)
     json_path_input = st.text_input("Path hasil_spektra.json", value=str(DEFAULT_JSON))
     info_path_input = st.text_input("Path data_stasiun.txt (opsional)", value=str(DEFAULT_INFO))
 
@@ -75,8 +226,6 @@ info_stasiun = muat_info_stasiun(info_path_input)
 
 if not by_kode:
     st.warning(f"Data dari `{json_path_input}` belum terbaca atau kosong.")
-else:
-    st.success(f"Berhasil memuat {len(by_kode)} stasiun dari `{json_path_input}`.")
 
 uploaded_files = st.file_uploader(
     "Upload file *.psa5",
@@ -85,21 +234,86 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    terdeteksi: dict[str, list[str]] = {}
+    T = buat_array_periode(periode_maks, interval)
+    data_stasiun: dict[str, dict[str, pd.DataFrame]] = {}
+    filename_per_stasiun: dict[str, str] = {}
+
     for up in uploaded_files:
         m = PSA_PATTERN.match(up.name)
         if m:
             st_kode = m.group(1).upper()
             komp = m.group(2).upper()[-3:]
-            terdeteksi.setdefault(st_kode, []).append(komp)
+            data_stasiun.setdefault(st_kode, {})[komp] = baca_psa_dari_bytes(
+                up.getvalue(), periode_maks=periode_maks
+            )
+            filename_per_stasiun.setdefault(st_kode, up.name)
         else:
             st.info(f"Lewati `{up.name}` (format nama tidak sesuai pola).")
 
-    for st_kode, komps in terdeteksi.items():
-        detail = info_stasiun.get(st_kode, "")
-        ada_di_json = "Ada di JSON" if st_kode in by_kode else "Tidak ada di JSON"
-        st.write(
-            f"- **{st_kode}**"
-            + (f" ({detail})" if detail else "")
-            + f" -> komponen: `{', '.join(sorted(set(komps)))}` | *{ada_di_json}*"
+    desain_per_stasiun: dict[str, dict[str, pd.DataFrame]] = {}
+    max_y_per_stasiun: dict[str, float] = {}
+
+    for st_kode, komp_map in data_stasiun.items():
+        if not komp_map:
+            continue
+        max_psa = max(df_k["PSA"].max() for df_k in komp_map.values())
+        max_desain = 0.0
+
+        item = by_kode.get(st_kode)
+        if item:
+            spektra_map = item.get("spektra", {})
+            for kelas in ["SC", "SD", "SE"]:
+                param = spektra_map.get(kelas) or spektra_map.get(kelas.lower())
+                if param and None not in (param.get("T0"), param.get("Ts"), param.get("SDS"), param.get("SD1")):
+                    sa_gal = hitung_sa_gal(
+                        T=T,
+                        sds=float(param["SDS"]),
+                        sd1=float(param["SD1"]),
+                        t0=float(param["T0"]),
+                        ts=float(param["Ts"]),
+                        tl=TL_DEFAULT,
+                    )
+                    klas_huruf = kelas[-1].upper()  # C, D, E
+                    desain_per_stasiun.setdefault(st_kode, {})[klas_huruf] = pd.DataFrame({
+                        "Periode": T,
+                        "SA": sa_gal,
+                    })
+                    max_desain = max(max_desain, float(np.max(sa_gal)))
+        else:
+            st.warning(f"Kode stasiun `{st_kode}` tidak ditemukan di `{json_path_input}` — hanya menampilkan PSA.")
+
+        max_y_per_stasiun[st_kode] = max(float(max_psa), max_desain)
+
+    global_ylim = (max(max_y_per_stasiun.values()) * 1.2) if max_y_per_stasiun else 1.0
+
+    for st_kode, komp_map in data_stasiun.items():
+        if not komp_map:
+            continue
+        ylim_val = global_ylim if samakan_skala_y else max(max_y_per_stasiun.get(st_kode, 1.0) * 1.2, 1.0)
+        ts_str = extract_datetime_from_filename(filename_per_stasiun.get(st_kode, ""))
+        loc_str = info_stasiun.get(st_kode, "")
+
+        fig = buat_figure_stasiun(
+            stasiun=st_kode,
+            komponen_data=komp_map,
+            desain_data=desain_per_stasiun.get(st_kode, {}),
+            timestamp_str=ts_str,
+            lokasi_detail=loc_str,
+            periode_maks=periode_maks,
+            ylim_max=ylim_val,
         )
+
+        st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
+        st.pyplot(fig, use_container_width=True)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=300)
+        buf.seek(0)
+        st.download_button(
+            label=f"Download Plot SA_{st_kode}.png",
+            data=buf,
+            file_name=f"SA_{st_kode}.png",
+            mime="image/png",
+            key=f"dl_png_{st_kode}",
+        )
+        plt.close(fig)
