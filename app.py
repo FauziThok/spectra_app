@@ -304,6 +304,7 @@ with st.sidebar:
 
     st.divider()
     json_path_input = st.text_input("Path hasil_spektra.json", value=str(DEFAULT_JSON))
+    st.caption("Sumber parameter spektra desain: [rsa.ciptakarya.pu.go.id](https://rsa.ciptakarya.pu.go.id/)")
     info_path_input = st.text_input("Path data_stasiun.txt (opsional)", value=str(DEFAULT_INFO))
 
 by_kode = muat_json_spektra(json_path_input)
