@@ -159,13 +159,14 @@ def buat_figure_stasiun(
     ylim_min: float,
     ylim_max: float,
     use_log_y: bool,
+    warna_komp: dict[str, str],
+    warna_desain: dict[str, str],
+    figsize_tuple: tuple[float, float],
 ):
-    fig, ax = plt.subplots(figsize=(6, 4.5))
-    warna_komp = {"HNE": "black", "HNN": "green", "HNZ": "blue"}
-    warna_desain = {"E": "red", "D": "orange", "C": "gold"}
+    fig, ax = plt.subplots(figsize=figsize_tuple)
     label_klas = {"E": "(SE)", "D": "(SD)", "C": "(SC)"}
 
-    min_pos = 1e-6 if use_log_y else None
+    min_pos = max(1e-6, float(ylim_min) * 0.1) if use_log_y else None
 
     for komp in ["HNE", "HNN", "HNZ"]:
         if komp in komponen_data and not komponen_data[komp].empty:
@@ -184,7 +185,7 @@ def buat_figure_stasiun(
         df_d = desain_data.get(klas)
         if df_d is not None and not df_d.empty:
             y_vals = df_d["SA"].values
-            if use_log_y:
+            if use_log_y and min_pos is not None:
                 y_vals = np.where(y_vals < min_pos, min_pos, y_vals)
             ax.plot(
                 df_d["Periode"].values,
@@ -241,6 +242,16 @@ with st.sidebar:
     )
 
     st.divider()
+    st.subheader("Urutan Stasiun")
+    urutkan_peak = st.checkbox("Urutkan berdasarkan peak respon spektra terbesar", value=True)
+    basis_peak = st.selectbox(
+        "Acuan nilai peak",
+        options=["Observasi (.psa5)", "Observasi + Desain (Sa)"],
+        index=0,
+        disabled=not urutkan_peak,
+    )
+
+    st.divider()
     st.subheader("Pengaturan Sumbu Y")
     use_log_y = st.checkbox("Gunakan skala logaritmik (log) sumbu Y", value=True)
     samakan_skala_y = st.checkbox("Samakan skala sumbu Y antar stasiun", value=True)
@@ -270,6 +281,23 @@ with st.sidebar:
         )
         if ymax_input <= ymin_input:
             st.error("Batas Atas Y harus lebih besar dari Batas Bawah Y.")
+
+    st.divider()
+    st.subheader("Tampilan & Warna Garis")
+    lebar_kolom_pct = st.slider("Lebar tampilan plot di halaman (%)", min_value=30, max_value=100, value=55, step=5)
+    fig_w = st.slider("Lebar Figure (inci)", min_value=4.5, max_value=10.0, value=6.0, step=0.5)
+    fig_h = st.slider("Tinggi Figure (inci)", min_value=3.5, max_value=8.0, value=4.5, step=0.5)
+
+    with st.expander("Kustomisasi Warna Kurva"):
+        c_hne = st.color_picker("Komponen HNE", value="#000000")
+        c_hnn = st.color_picker("Komponen HNN", value="#008000")
+        c_hnz = st.color_picker("Komponen HNZ", value="#0000FF")
+        c_se = st.color_picker("Desain SE (Kelas E)", value="#FF0000")
+        c_sd = st.color_picker("Desain SD (Kelas D)", value="#FFA500")
+        c_sc = st.color_picker("Desain SC (Kelas C)", value="#FFD700")
+
+    warna_komp = {"HNE": c_hne, "HNN": c_hnn, "HNZ": c_hnz}
+    warna_desain = {"E": c_se, "D": c_sd, "C": c_sc}
 
     st.divider()
     json_path_input = st.text_input("Path hasil_spektra.json", value=str(DEFAULT_JSON))
@@ -305,12 +333,13 @@ if uploaded_files:
             st.info(f"Lewati `{up.name}` (format nama tidak sesuai pola).")
 
     desain_per_stasiun: dict[str, dict[str, pd.DataFrame]] = {}
+    peak_psa_per_stasiun: dict[str, float] = {}
     max_y_per_stasiun: dict[str, float] = {}
 
     for st_kode, komp_map in data_stasiun.items():
         if not komp_map:
             continue
-        max_psa = max(df_k["PSA"].max() for df_k in komp_map.values())
+        max_psa = max(float(df_k["PSA"].max()) for df_k in komp_map.values() if not df_k.empty)
         max_desain = 0.0
 
         item = by_kode.get(st_kode)
@@ -336,13 +365,20 @@ if uploaded_files:
         else:
             st.warning(f"Kode stasiun `{st_kode}` tidak ditemukan di `{json_path_input}` — hanya menampilkan PSA.")
 
-        max_y_per_stasiun[st_kode] = max(float(max_psa), max_desain)
+        peak_psa_per_stasiun[st_kode] = max_psa
+        max_y_per_stasiun[st_kode] = max(max_psa, max_desain)
+
+    daftar_stasiun = [st_k for st_k, komp_m in data_stasiun.items() if komp_m]
+    if urutkan_peak:
+        if basis_peak == "Observasi + Desain (Sa)":
+            daftar_stasiun.sort(key=lambda s: max_y_per_stasiun.get(s, 0.0), reverse=True)
+        else:
+            daftar_stasiun.sort(key=lambda s: peak_psa_per_stasiun.get(s, 0.0), reverse=True)
 
     global_ylim = (max(max_y_per_stasiun.values()) * 1.2) if max_y_per_stasiun else 1.0
 
-    for st_kode, komp_map in data_stasiun.items():
-        if not komp_map:
-            continue
+    for st_kode in daftar_stasiun:
+        komp_map = data_stasiun[st_kode]
 
         if batas_y_manual:
             ylim_min_val = float(ymin_input)
@@ -355,6 +391,7 @@ if uploaded_files:
 
         ts_str = extract_datetime_from_filename(filename_per_stasiun.get(st_kode, ""))
         loc_str = info_stasiun.get(st_kode, "")
+        peak_obs = peak_psa_per_stasiun.get(st_kode, 0.0)
 
         fig = buat_figure_stasiun(
             stasiun=st_kode,
@@ -366,12 +403,23 @@ if uploaded_files:
             ylim_min=ylim_min_val,
             ylim_max=ylim_max_val,
             use_log_y=use_log_y,
+            warna_komp=warna_komp,
+            warna_desain=warna_desain,
+            figsize_tuple=(float(fig_w), float(fig_h)),
         )
 
-        st.subheader(f"Stasiun: {st_kode}" + (f" — {loc_str}" if loc_str else ""))
+        st.subheader(
+            f"Stasiun: {st_kode}"
+            + (f" — {loc_str}" if loc_str else "")
+            + f" (Peak PSA: {peak_obs:.2f} gal)"
+        )
 
-        col_plot, _ = st.columns([1.3, 1])
-        with col_plot:
+        if lebar_kolom_pct < 100:
+            sisa_pct = max(100 - lebar_kolom_pct, 1)
+            col_plot, _ = st.columns([lebar_kolom_pct, sisa_pct])
+            with col_plot:
+                st.pyplot(fig, use_container_width=True)
+        else:
             st.pyplot(fig, use_container_width=True)
 
         buf_png = io.BytesIO()
